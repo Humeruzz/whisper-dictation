@@ -35,6 +35,7 @@ LANGUAGE = "en"
 SAMPLE_RATE = 16000
 CHANNELS = 1
 PASTE_DELAY_MS = 100  # delay between wl-copy and Ctrl+V keystroke
+MAX_RECORDING_SECONDS = 300  # auto-stop after 5 minutes to prevent unbounded memory use
 
 # Hotkey: Super + Shift + S  (change these to customize)
 HOTKEY_SUPER = {ecodes.KEY_LEFTMETA, ecodes.KEY_RIGHTMETA}
@@ -55,7 +56,7 @@ def notify(summary, body="", icon="audio-input-microphone", urgency="normal"):
     if body:
         args.append(body)
     try:
-        subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
     except FileNotFoundError:
         pass
 
@@ -156,6 +157,7 @@ class AudioRecorder:
         if not self.chunks:
             return np.array([], dtype="float32")
         audio = np.concatenate(self.chunks, axis=0)
+        self.chunks.clear()
         return audio.flatten()
 
 
@@ -168,7 +170,6 @@ def paste_text(text):
         subprocess.run(["wl-copy", "--", text], check=True, timeout=5)
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         notify("Error", f"wl-copy failed: {e}", urgency="critical")
-        print(f"  Text was: {text}")
         return
 
     # Step 2: Small delay so clipboard is ready
@@ -219,10 +220,11 @@ def transcribe_and_paste(model, audio_data, app):
         GLib.idle_add(app.set_idle)
         return
 
-    print(f"[TRANSCRIBED] ({elapsed:.1f}s): {text}")
+    print(f"[TRANSCRIBED] ({elapsed:.1f}s, {len(text)} chars)")
     paste_text(text)
-    preview = text if len(text) <= 80 else text[:77] + "..."
-    notify("Transcribed", f"({elapsed:.1f}s) {preview}")
+    notify("Transcribed", f"({elapsed:.1f}s, {len(text)} chars)")
+    audio_data[:] = 0
+    del audio_data
     GLib.idle_add(app.set_idle)
 
 
@@ -247,6 +249,7 @@ class DictationApp:
         self.pressed_keys = set()
         self.fd_to_dev = {dev.fd: dev for dev in keyboards}
         self.loop = None
+        self._recording_timeout_id = None
 
         # Set up tray indicator
         self.indicator = appindicator.Indicator.new(
@@ -336,17 +339,29 @@ class DictationApp:
 
         return True  # keep watching
 
+    def _auto_stop(self):
+        if self.state == "RECORDING":
+            notify("Recording", "Auto-stopped (max duration reached)")
+            self._toggle()
+        return False  # don't repeat
+
     def _toggle(self):
         if self.state == "IDLE":
             try:
                 self.recorder = AudioRecorder()
                 self.recorder.start()
                 self.set_recording()
+                self._recording_timeout_id = GLib.timeout_add_seconds(
+                    MAX_RECORDING_SECONDS, self._auto_stop
+                )
                 notify("Recording", "Speak now...")
             except sd.PortAudioError as e:
                 notify("Error", f"Could not start recording: {e}", urgency="critical")
                 self.recorder = None
         elif self.state == "RECORDING":
+            if self._recording_timeout_id is not None:
+                GLib.source_remove(self._recording_timeout_id)
+                self._recording_timeout_id = None
             self.set_transcribing()
             notify("Stopped", "Transcribing...")
             audio_data = self.recorder.stop()
