@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whisper Dictation Tool — Press Super+Shift+S to dictate text at your cursor."""
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 import os
 import pathlib
