@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.1] - 2026-03-17
+
+### Changed
+- Moved source files into `src/` directory
+- Entry point is now `src/app.py` (or via the app launcher)
+
 ## [2.0.0] - 2026-03-17
 
 ### Added

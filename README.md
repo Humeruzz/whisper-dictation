@@ -70,7 +70,7 @@ To change the hotkey (default: **Super+Shift+S**), edit the `HOTKEY_*` constants
 
 ```bash
 source .venv/bin/activate
-python app.py
+python src/app.py
 ```
 
 1. Wait for the "Ready" notification (first run downloads the Whisper model)

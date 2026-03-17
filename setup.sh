@@ -65,7 +65,7 @@ echo ""
 echo "[7/7] Installing desktop launcher..."
 DESKTOP_FILE="$HOME/.local/share/applications/whisper-dictation.desktop"
 VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
-APP_SCRIPT="$SCRIPT_DIR/app.py"
+APP_SCRIPT="$SCRIPT_DIR/src/app.py"
 mkdir -p "$HOME/.local/share/applications"
 cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
