@@ -4,6 +4,7 @@
 __version__ = "2.0.0"
 
 import os
+import pathlib
 import shutil
 import signal
 import subprocess
@@ -14,7 +15,7 @@ import time
 import evdev
 import gi
 import sounddevice as sd
-from dotenv import find_dotenv, load_dotenv, set_key
+from dotenv import load_dotenv, set_key
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("AyatanaAppIndicator3", "0.1")
@@ -25,6 +26,8 @@ import llm
 import whisper
 
 load_dotenv()
+
+_DOTENV_PATH = pathlib.Path(__file__).resolve().parent.parent / ".env"
 
 # ── Configuration (from .env) ─────────────────────────────────────────────────
 
@@ -270,9 +273,8 @@ class DictationApp:
         self.status_item.set_label("Status: Formatting...")
 
     def _save_env(self, key, value):
-        dotenv_path = find_dotenv(usecwd=True)
-        if dotenv_path:
-            set_key(dotenv_path, key, value)
+        if _DOTENV_PATH.exists():
+            set_key(str(_DOTENV_PATH), key, value)
 
     def _on_llm_toggle(self, widget):
         llm.LLM_ENABLED = widget.get_active()
