@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Whisper Dictation Tool — Press Super+Shift+S to dictate text at your cursor."""
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 import os
+import pathlib
 import shutil
 import signal
 import subprocess
@@ -14,7 +15,7 @@ import time
 import evdev
 import gi
 import sounddevice as sd
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("AyatanaAppIndicator3", "0.1")
@@ -25,6 +26,8 @@ import llm
 import whisper
 
 load_dotenv()
+
+_DOTENV_PATH = pathlib.Path(__file__).resolve().parent.parent / ".env"
 
 # ── Configuration (from .env) ─────────────────────────────────────────────────
 
@@ -208,6 +211,38 @@ class DictationApp:
 
         menu.append(Gtk.SeparatorMenuItem())
 
+        # LLM toggle
+        self.llm_toggle = Gtk.CheckMenuItem(label="LLM Formatting")
+        self.llm_toggle.set_active(llm.LLM_ENABLED)
+        self.llm_toggle.connect("toggled", self._on_llm_toggle)
+        menu.append(self.llm_toggle)
+
+        # LLM mode submenu
+        self.llm_mode_item = Gtk.MenuItem(label="LLM Mode")
+        mode_submenu = Gtk.Menu()
+        self.llm_mode_item.set_submenu(mode_submenu)
+
+        group = []
+        for label, mode in [("Format", "format"), ("Summarize", "summarize")]:
+            item = Gtk.RadioMenuItem.new_with_label(group, label)
+            group = item.get_group()
+            if llm.LLM_MODE == mode:
+                item.set_active(True)
+            item.connect("toggled", self._on_llm_mode, mode)
+            mode_submenu.append(item)
+
+        self.llm_mode_item.set_sensitive(llm.LLM_ENABLED)
+        menu.append(self.llm_mode_item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        # About
+        about_item = Gtk.MenuItem(label="About")
+        about_item.connect("activate", self._on_about)
+        menu.append(about_item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
         quit_item = Gtk.MenuItem(label="Quit")
         quit_item.connect("activate", self._on_quit)
         menu.append(quit_item)
@@ -236,6 +271,31 @@ class DictationApp:
     def set_formatting(self):
         self.indicator.set_icon_full(ICON_PROCESSING, "Formatting")
         self.status_item.set_label("Status: Formatting...")
+
+    def _save_env(self, key, value):
+        if _DOTENV_PATH.exists():
+            set_key(str(_DOTENV_PATH), key, value)
+
+    def _on_llm_toggle(self, widget):
+        llm.LLM_ENABLED = widget.get_active()
+        self.llm_mode_item.set_sensitive(llm.LLM_ENABLED)
+        self._save_env("LLM_ENABLED", "true" if llm.LLM_ENABLED else "false")
+
+    def _on_llm_mode(self, widget, mode):
+        if widget.get_active():
+            llm.LLM_MODE = mode
+            self._save_env("LLM_MODE", mode)
+
+    def _on_about(self, _widget):
+        dialog = Gtk.AboutDialog()
+        dialog.set_program_name("Whisper Dictation")
+        dialog.set_version(__version__)
+        dialog.set_comments(
+            "Speech-to-text dictation with optional LLM formatting.\n"
+            "Press Super+Shift+S to start/stop recording."
+        )
+        dialog.run()
+        dialog.destroy()
 
     def _on_quit(self, _widget):
         self.loop.quit()

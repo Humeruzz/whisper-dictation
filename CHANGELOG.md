@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.0] - 2026-03-17
+
+### Added
+- Tray menu: LLM Formatting toggle (enable/disable at runtime)
+- Tray menu: LLM Mode submenu to switch between `format` and `summarize`
+- Tray menu: About dialog showing app name, version, and description
+- All tray menu changes are persisted to `.env` and survive restarts
+
+### Fixed
+- `.env` path now resolved from `__file__` instead of CWD, ensuring tray menu changes
+  are always saved regardless of how or from where the app is launched
+
 ## [2.0.1] - 2026-03-17
 
 ### Changed
