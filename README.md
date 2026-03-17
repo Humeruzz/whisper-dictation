@@ -80,6 +80,20 @@ python src/app.py
 5. The tray icon shows: Recording → Transcribing → Formatting *(if LLM enabled)* → Idle
 6. Transcribed (and optionally cleaned-up) text is pasted at your cursor
 
+## Tray Icon Menu
+
+Right-clicking the tray icon opens a menu with the following options:
+
+| Menu item | What it does |
+|---|---|
+| **Status** | Shows the current app state (Idle / Recording / Transcribing / Formatting) — read-only |
+| **LLM Formatting** | Toggle checkbox — enables or disables LLM processing at runtime |
+| **LLM Mode** | Submenu to switch between `format` and `summarize` modes (grayed out when LLM is disabled) |
+| **About** | Shows the app name, version, and a short description |
+| **Quit** | Exits the app |
+
+Changes made through the tray menu are saved to your `.env` file immediately and persist across restarts. The `LLM Mode` submenu becomes insensitive (grayed out) when **LLM Formatting** is disabled.
+
 ## LLM Formatting (LM Studio)
 
 When `LLM_ENABLED=true`, each transcription is sent to a local LLM before pasting.
