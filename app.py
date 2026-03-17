@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Whisper Dictation Tool — Press Super+Shift+S to dictate text at your cursor."""
 
+__version__ = "2.0.0"
+
 import os
 import shutil
 import signal
@@ -11,43 +13,37 @@ import time
 
 import evdev
 import gi
-import numpy as np
 import sounddevice as sd
-from evdev import ecodes
-from faster_whisper import WhisperModel
+from dotenv import load_dotenv
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("AyatanaAppIndicator3", "0.1")
 from gi.repository import GLib, Gtk  # noqa: E402
 from gi.repository import AyatanaAppIndicator3 as appindicator  # noqa: E402
 
-# ── Configuration ────────────────────────────────────────────────────────────
+import llm
+import whisper
 
-# Available models (speed vs accuracy tradeoff):
-#   "tiny"     ~75MB,  fastest,       least accurate
-#   "base"     ~150MB, fast,          good for clear speech
-#   "small"    ~500MB, moderate,      better accuracy
-#   "medium"   ~1.5GB, slower,        high accuracy
-#   "large-v3" ~3GB,   slowest,       best accuracy
-MODEL_SIZE = "small"
-COMPUTE_TYPE = "int8"
-LANGUAGE = "en"
-SAMPLE_RATE = 16000
-CHANNELS = 1
-PASTE_DELAY_MS = 100  # delay between wl-copy and Ctrl+V keystroke
-MAX_RECORDING_SECONDS = 300  # auto-stop after 5 minutes to prevent unbounded memory use
+load_dotenv()
 
-# Hotkey: Super + Shift + S  (change these to customize)
-HOTKEY_SUPER = {ecodes.KEY_LEFTMETA, ecodes.KEY_RIGHTMETA}
-HOTKEY_SHIFT = {ecodes.KEY_LEFTSHIFT, ecodes.KEY_RIGHTSHIFT}
-HOTKEY_KEY = ecodes.KEY_S
-DEBOUNCE_SECONDS = 0.5
+# ── Configuration (from .env) ─────────────────────────────────────────────────
+
+PASTE_DELAY_MS = int(os.getenv("PASTE_DELAY_MS", "100"))
 
 ICON_IDLE = "microphone-sensitivity-muted-symbolic"
 ICON_RECORDING = "microphone-sensitivity-high-symbolic"
+ICON_PROCESSING = "emblem-synchronizing-symbolic"
+
+# Notification toggles — each can be disabled independently via .env
+NOTIFY_ON_READY        = os.getenv("NOTIFY_ON_READY",        "true").lower() == "true"
+NOTIFY_ON_RECORDING    = os.getenv("NOTIFY_ON_RECORDING",    "true").lower() == "true"
+NOTIFY_ON_TRANSCRIBING = os.getenv("NOTIFY_ON_TRANSCRIBING", "true").lower() == "true"
+NOTIFY_ON_DONE         = os.getenv("NOTIFY_ON_DONE",         "true").lower() == "true"
+NOTIFY_ON_SKIPPED      = os.getenv("NOTIFY_ON_SKIPPED",      "true").lower() == "true"
+NOTIFY_VERBOSE         = os.getenv("NOTIFY_VERBOSE",         "false").lower() == "true"
 
 
-# ── Notifications ────────────────────────────────────────────────────────────
+# ── Notifications ─────────────────────────────────────────────────────────────
 
 def notify(summary, body="", icon="audio-input-microphone", urgency="normal"):
     """Send a desktop notification and print to terminal."""
@@ -61,7 +57,7 @@ def notify(summary, body="", icon="audio-input-microphone", urgency="normal"):
         pass
 
 
-# ── Prerequisite Checks ─────────────────────────────────────────────────────
+# ── Prerequisite Checks ───────────────────────────────────────────────────────
 
 def check_prerequisites():
     ok = True
@@ -101,67 +97,7 @@ def check_prerequisites():
         sys.exit(1)
 
 
-# ── Whisper Model ────────────────────────────────────────────────────────────
-
-def load_model():
-    print(f"Loading Whisper model ({MODEL_SIZE})... ", end="", flush=True)
-    start = time.monotonic()
-    model = WhisperModel(MODEL_SIZE, device="cpu", compute_type=COMPUTE_TYPE)
-    elapsed = time.monotonic() - start
-    print(f"done ({elapsed:.1f}s)")
-    return model
-
-
-# ── Keyboard Discovery ───────────────────────────────────────────────────────
-
-def find_keyboard_devices():
-    keyboards = []
-    for path in evdev.list_devices():
-        dev = evdev.InputDevice(path)
-        caps = dev.capabilities(verbose=False)
-        if ecodes.EV_KEY in caps:
-            key_codes = caps[ecodes.EV_KEY]
-            if ecodes.KEY_A in key_codes and ecodes.KEY_Z in key_codes:
-                keyboards.append(dev)
-                print(f"  Found keyboard: {dev.name} ({dev.path})")
-    return keyboards
-
-
-# ── Audio Recorder ───────────────────────────────────────────────────────────
-
-class AudioRecorder:
-    def __init__(self):
-        self.chunks = []
-        self.stream = None
-
-    def _callback(self, indata, _frames, _time_info, status):
-        if status:
-            print(f"  Audio warning: {status}")
-        self.chunks.append(indata.copy())
-
-    def start(self):
-        self.chunks = []
-        self.stream = sd.InputStream(
-            samplerate=SAMPLE_RATE,
-            channels=CHANNELS,
-            dtype="float32",
-            callback=self._callback,
-            blocksize=1024,
-        )
-        self.stream.start()
-
-    def stop(self):
-        self.stream.stop()
-        self.stream.close()
-        self.stream = None
-        if not self.chunks:
-            return np.array([], dtype="float32")
-        audio = np.concatenate(self.chunks, axis=0)
-        self.chunks.clear()
-        return audio.flatten()
-
-
-# ── Text Pasting ─────────────────────────────────────────────────────────────
+# ── Text Pasting ──────────────────────────────────────────────────────────────
 
 def paste_text(text):
     """Copy text to clipboard via wl-copy, then simulate Ctrl+V via evdev uinput."""
@@ -169,7 +105,9 @@ def paste_text(text):
         # Step 1: Copy to Wayland clipboard
         subprocess.run(["wl-copy", "--", text], check=True, timeout=5)
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        notify("Error", f"wl-copy failed: {e}", urgency="critical")
+        print(f"[ERROR] wl-copy: {e}")
+        body = f"wl-copy failed: {e}" if NOTIFY_VERBOSE else "Clipboard copy failed — check terminal for details."
+        notify("Error", body, urgency="critical")
         return
 
     # Step 2: Small delay so clipboard is ready
@@ -177,67 +115,69 @@ def paste_text(text):
 
     # Step 3: Simulate Ctrl+V via evdev UInput (works on all compositors)
     try:
+        from evdev import ecodes
         ui = evdev.UInput()
-        ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
-        ui.write(ecodes.EV_KEY, ecodes.KEY_V, 1)
-        ui.syn()
-        time.sleep(0.05)
-        ui.write(ecodes.EV_KEY, ecodes.KEY_V, 0)
-        ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 0)
-        ui.syn()
-        ui.close()
+        try:
+            ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
+            ui.write(ecodes.EV_KEY, ecodes.KEY_V, 1)
+            ui.syn()
+            time.sleep(0.05)
+            ui.write(ecodes.EV_KEY, ecodes.KEY_V, 0)
+            ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 0)
+            ui.syn()
+        finally:
+            ui.close()
     except Exception as e:
-        notify("Error", f"Ctrl+V failed: {e}\nText copied to clipboard — paste manually.", urgency="critical")
+        print(f"[ERROR] Ctrl+V: {e}")
+        body = f"Ctrl+V failed: {e}\nText copied to clipboard — paste manually." if NOTIFY_VERBOSE else "Paste failed — text is on clipboard, paste manually."
+        notify("Error", body, urgency="critical")
 
 
-# ── Transcription ────────────────────────────────────────────────────────────
+# ── Transcription + LLM Orchestration ────────────────────────────────────────
 
 def transcribe_and_paste(model, audio_data, app):
-    if len(audio_data) < SAMPLE_RATE // 10:  # less than 0.1s
-        notify("Skipped", "Recording too short")
+    # Reject recordings that are too short to contain speech
+    if len(audio_data) < whisper.SAMPLE_RATE // 10:
+        if NOTIFY_ON_SKIPPED:
+            notify("Skipped", "Recording too short")
         GLib.idle_add(app.set_idle)
         return
 
     start = time.monotonic()
     try:
-        segments, _info = model.transcribe(
-            audio_data,
-            language=LANGUAGE,
-            beam_size=5,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-        )
-        text = " ".join(seg.text.strip() for seg in segments).strip()
+        text = whisper.transcribe_audio(model, audio_data)
     except Exception as e:
-        notify("Error", f"Transcription failed: {e}", urgency="critical")
+        print(f"[ERROR] Transcription: {e}")
+        body = f"Transcription failed: {e}" if NOTIFY_VERBOSE else "Transcription failed — check terminal for details."
+        notify("Error", body, urgency="critical")
         GLib.idle_add(app.set_idle)
         return
 
     elapsed = time.monotonic() - start
 
     if not text:
-        notify("Skipped", f"No speech detected ({elapsed:.1f}s)")
+        if NOTIFY_ON_SKIPPED:
+            notify("Skipped", f"No speech detected ({elapsed:.1f}s)")
         GLib.idle_add(app.set_idle)
         return
 
     print(f"[TRANSCRIBED] ({elapsed:.1f}s, {len(text)} chars)")
+
+    # LLM formatting/summarization (blocking; runs in this worker thread)
+    # format_with_llm() handles all exceptions internally and always returns a string
+    if llm.LLM_ENABLED:
+        GLib.idle_add(app.set_formatting)
+    text = llm.format_with_llm(text)
+
     paste_text(text)
-    notify("Transcribed", f"({elapsed:.1f}s, {len(text)} chars)")
+    if NOTIFY_ON_DONE:
+        notify("Transcribed", f"({elapsed:.1f}s, {len(text)} chars)")
     audio_data[:] = 0
     del audio_data
     GLib.idle_add(app.set_idle)
 
 
-# ── Hotkey Detection ─────────────────────────────────────────────────────────
-
-def check_hotkey(pressed):
-    has_super = bool(pressed & HOTKEY_SUPER)
-    has_shift = bool(pressed & HOTKEY_SHIFT)
-    has_key = HOTKEY_KEY in pressed
-    return has_super and has_shift and has_key
-
-
-# ── Tray Icon App ───────────────────────────────────────────────────────────
+# ── Tray Icon App ─────────────────────────────────────────────────────────────
 
 class DictationApp:
     def __init__(self, model, keyboards):
@@ -293,6 +233,10 @@ class DictationApp:
         self.indicator.set_icon_full(ICON_IDLE, "Transcribing")
         self.status_item.set_label("Status: Transcribing...")
 
+    def set_formatting(self):
+        self.indicator.set_icon_full(ICON_PROCESSING, "Formatting")
+        self.status_item.set_label("Status: Formatting...")
+
     def _on_quit(self, _widget):
         self.loop.quit()
 
@@ -303,7 +247,7 @@ class DictationApp:
 
         try:
             for event in dev.read():
-                if event.type != ecodes.EV_KEY:
+                if event.type != evdev.ecodes.EV_KEY:
                     continue
 
                 key_event = evdev.categorize(event)
@@ -318,12 +262,12 @@ class DictationApp:
                 if key_event.keystate != evdev.KeyEvent.key_down:
                     continue
 
-                if not check_hotkey(self.pressed_keys):
+                if not whisper.check_hotkey(self.pressed_keys):
                     continue
 
                 # Debounce
                 now = time.monotonic()
-                if now - self.last_trigger < DEBOUNCE_SECONDS:
+                if now - self.last_trigger < whisper.DEBOUNCE_SECONDS:
                     continue
                 self.last_trigger = now
 
@@ -348,22 +292,26 @@ class DictationApp:
     def _toggle(self):
         if self.state == "IDLE":
             try:
-                self.recorder = AudioRecorder()
+                self.recorder = whisper.AudioRecorder()
                 self.recorder.start()
                 self.set_recording()
                 self._recording_timeout_id = GLib.timeout_add_seconds(
-                    MAX_RECORDING_SECONDS, self._auto_stop
+                    whisper.MAX_RECORDING_SECONDS, self._auto_stop
                 )
-                notify("Recording", "Speak now...")
+                if NOTIFY_ON_RECORDING:
+                    notify("Recording", "Speak now...")
             except sd.PortAudioError as e:
-                notify("Error", f"Could not start recording: {e}", urgency="critical")
+                print(f"[ERROR] Recording: {e}")
+                body = f"Could not start recording: {e}" if NOTIFY_VERBOSE else "Could not start recording — check terminal for details."
+                notify("Error", body, urgency="critical")
                 self.recorder = None
         elif self.state == "RECORDING":
             if self._recording_timeout_id is not None:
                 GLib.source_remove(self._recording_timeout_id)
                 self._recording_timeout_id = None
             self.set_transcribing()
-            notify("Stopped", "Transcribing...")
+            if NOTIFY_ON_TRANSCRIBING:
+                notify("Stopped", "Transcribing...")
             audio_data = self.recorder.stop()
             self.recorder = None
             self.state = "TRANSCRIBING"
@@ -375,12 +323,13 @@ class DictationApp:
 
     def run(self):
         self.loop = GLib.MainLoop()
-        notify("Ready", "Press Super+Shift+S to dictate")
+        if NOTIFY_ON_READY:
+            notify("Ready", "Press Super+Shift+S to dictate")
         print("\nReady. Press Super+Shift+S to start/stop dictation.\n")
         self.loop.run()
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
@@ -394,10 +343,10 @@ def main():
     check_prerequisites()
     print("OK")
 
-    model = load_model()
+    model = whisper.load_model()
 
     print("Scanning keyboards...")
-    keyboards = find_keyboard_devices()
+    keyboards = whisper.find_keyboard_devices()
     if not keyboards:
         print("ERROR: No keyboard devices found.")
         print("  sudo usermod -aG input $USER  (then re-login)")
