@@ -9,7 +9,7 @@ echo ""
 
 # Install system packages
 echo "[1/7] Installing system packages..."
-sudo apt install -y wl-clipboard libportaudio2 portaudio19-dev gir1.2-ayatanaappindicator3-0.1
+sudo apt install -y build-essential python3-dev wl-clipboard libportaudio2 portaudio19-dev gir1.2-ayatanaappindicator3-0.1
 
 # Add user to input group (needed for evdev + uinput)
 echo ""
