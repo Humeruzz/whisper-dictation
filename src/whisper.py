@@ -16,6 +16,7 @@ load_dotenv()
 
 MODEL_SIZE = os.getenv("MODEL_SIZE", "small")
 COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "int8")
+DEVICE = os.getenv("DEVICE", "auto")
 LANGUAGE = os.getenv("WHISPER_LANGUAGE", "en") or None  # empty string → None = auto-detect
 SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", "16000"))
 CHANNELS = int(os.getenv("CHANNELS", "1"))
@@ -30,10 +31,28 @@ HOTKEY_KEY = ecodes.KEY_S
 
 # ── Whisper Model ─────────────────────────────────────────────────────────────
 
+def _has_gpu() -> bool:
+    try:
+        import ctranslate2
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
+        return False
+
+
 def load_model():
-    print(f"Loading Whisper model ({MODEL_SIZE})... ", end="", flush=True)
+    device = DEVICE
+    compute_type = COMPUTE_TYPE
+
+    # "auto" resolves to CPU when no GPU is present; check the effective device
+    # before passing float16, which CTranslate2 only supports on CUDA.
+    effective_cpu = device == "cpu" or (device == "auto" and not _has_gpu())
+    if compute_type == "float16" and effective_cpu:
+        print("  Warning: float16 requires a CUDA GPU. No GPU detected — falling back to int8.")
+        compute_type = "int8"
+
+    print(f"Loading Whisper model ({MODEL_SIZE}, device={device}, compute={compute_type})... ", end="", flush=True)
     start = time.monotonic()
-    model = WhisperModel(MODEL_SIZE, device="cpu", compute_type=COMPUTE_TYPE)
+    model = WhisperModel(MODEL_SIZE, device=device, compute_type=compute_type)
     elapsed = time.monotonic() - start
     print(f"done ({elapsed:.1f}s)")
     return model
