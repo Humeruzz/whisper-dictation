@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Microphone capsule (pill outline) -->
+  <rect x="145" y="70" width="130" height="200" rx="65" ry="65"
+        fill="none" stroke="#4F6EF5" stroke-width="24"/>
+  <!-- Microphone stand -->
+  <line x1="210" y1="270" x2="210" y2="360"
+        stroke="#4F6EF5" stroke-width="24" stroke-linecap="round"/>
+  <!-- Microphone base arc -->
+  <path d="M 150,360 A 60,25 0 0 1 270,360"
+        fill="none" stroke="#4F6EF5" stroke-width="24" stroke-linecap="round"/>
+  <!-- AI spark (4-point star, filled violet) -->
+  <path d="M 330,52 L 335.7,74.3 L 358,80 L 335.7,85.7
+           L 330,108 L 324.3,85.7 L 302,80 L 324.3,74.3 Z"
+        fill="#9B5CF6"/>
+</svg>
