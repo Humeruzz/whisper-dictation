@@ -67,12 +67,25 @@ DESKTOP_FILE="$HOME/.local/share/applications/whisper-dictation.desktop"
 VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
 APP_SCRIPT="$SCRIPT_DIR/src/app.py"
 mkdir -p "$HOME/.local/share/applications"
+
+# Let the user choose which icon variant to use
+echo "  Which system theme are you using?"
+echo "    1) Dark"
+echo "    2) Light"
+read -r -p "  Enter 1 or 2 [1]: " THEME_CHOICE
+case "${THEME_CHOICE:-1}" in
+    2) APP_ICON="$SCRIPT_DIR/assets/icon-light.svg"
+       echo "  Using icon-light.svg" ;;
+    *) APP_ICON="$SCRIPT_DIR/assets/icon-dark.svg"
+       echo "  Using icon-dark.svg" ;;
+esac
+
 cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
 Name=Whisper Dictation
 Comment=Speech-to-text with Super+Shift+S
 Exec=$VENV_PYTHON $APP_SCRIPT
-Icon=$SCRIPT_DIR/assets/icon.svg
+Icon=$APP_ICON
 Type=Application
 Categories=Utility;Audio;
 Terminal=false

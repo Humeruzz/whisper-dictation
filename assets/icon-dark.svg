@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Dark theme: off-white mic, amber spark -->
+  <defs>
+    <clipPath id="grille-dark">
+      <circle cx="210" cy="165" r="65"/>
+    </clipPath>
+  </defs>
+
+  <line x1="100" y1="130" x2="320" y2="130" clip-path="url(#grille-dark)"
+        stroke="#F1F5F9" stroke-width="6" stroke-linecap="round"/>
+  <line x1="100" y1="165" x2="320" y2="165" clip-path="url(#grille-dark)"
+        stroke="#F1F5F9" stroke-width="6" stroke-linecap="round"/>
+  <line x1="100" y1="200" x2="320" y2="200" clip-path="url(#grille-dark)"
+        stroke="#F1F5F9" stroke-width="6" stroke-linecap="round"/>
+  <line x1="175" y1="70" x2="175" y2="260" clip-path="url(#grille-dark)"
+        stroke="#F1F5F9" stroke-width="6" stroke-linecap="round"/>
+  <line x1="210" y1="70" x2="210" y2="260" clip-path="url(#grille-dark)"
+        stroke="#F1F5F9" stroke-width="6" stroke-linecap="round"/>
+  <line x1="245" y1="70" x2="245" y2="260" clip-path="url(#grille-dark)"
+        stroke="#F1F5F9" stroke-width="6" stroke-linecap="round"/>
+
+  <circle cx="210" cy="165" r="68"
+          fill="none" stroke="#F1F5F9" stroke-width="6"/>
+  <circle cx="210" cy="165" r="85"
+          fill="none" stroke="#F1F5F9" stroke-width="13"/>
+
+  <ellipse cx="210" cy="385" rx="72" ry="20"
+           fill="none" stroke="#F1F5F9" stroke-width="10"/>
+  <line x1="210" y1="282" x2="210" y2="365"
+        stroke="#F1F5F9" stroke-width="10" stroke-linecap="butt"/>
+  <rect x="188" y="258" width="44" height="24" rx="5"
+        fill="none" stroke="#F1F5F9" stroke-width="8"/>
+
+  <!-- Spark: amber gold — warm and visible on dark backgrounds -->
+  <path d="M 330,52 L 335.7,74.3 L 358,80 L 335.7,85.7
+           L 330,108 L 324.3,85.7 L 302,80 L 324.3,74.3 Z"
+        fill="#FBBF24"/>
+</svg>
