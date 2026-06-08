@@ -72,7 +72,7 @@ cat > "$DESKTOP_FILE" <<EOF
 Name=Whisper Dictation
 Comment=Speech-to-text with Super+Shift+S
 Exec=$VENV_PYTHON $APP_SCRIPT
-Icon=audio-input-microphone
+Icon=$SCRIPT_DIR/assets/icon.svg
 Type=Application
 Categories=Utility;Audio;
 Terminal=false
