@@ -6,6 +6,8 @@ cd "$SCRIPT_DIR"
 
 echo "=== Whisper Dictation Tool Setup ==="
 echo ""
+echo "Note: This build uses openai-whisper + PyTorch (supports NVIDIA CUDA, AMD ROCm, and CPU)."
+echo ""
 
 # Install system packages
 echo "[1/7] Installing system packages..."
@@ -44,15 +46,29 @@ fi
 /usr/bin/python3 -m venv --system-site-packages .venv
 echo "  Created .venv/"
 
-# Install Python dependencies
+# Detect GPU and install PyTorch with the right backend
 echo ""
-echo "[5/7] Installing Python dependencies..."
+echo "[5/8] Installing PyTorch..."
 .venv/bin/pip install --upgrade pip
+if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null 2>&1; then
+    echo "  NVIDIA GPU detected — installing PyTorch with CUDA."
+    .venv/bin/pip install torch torchvision
+elif command -v rocminfo &>/dev/null; then
+    echo "  AMD GPU detected — installing PyTorch with ROCm 7.2."
+    .venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.2
+else
+    echo "  No GPU detected — installing CPU-only PyTorch."
+    .venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+fi
+
+# Install remaining Python dependencies
+echo ""
+echo "[6/8] Installing Python dependencies..."
 .venv/bin/pip install -r requirements.txt
 
 # Set up .env config file
 echo ""
-echo "[6/7] Setting up configuration..."
+echo "[7/8] Setting up configuration..."
 if [ -f ".env" ]; then
     echo "  .env already exists, keeping your settings."
 else
@@ -62,7 +78,7 @@ fi
 
 # Install .desktop file for app launcher
 echo ""
-echo "[7/7] Installing desktop launcher..."
+echo "[8/8] Installing desktop launcher..."
 DESKTOP_FILE="$HOME/.local/share/applications/whisper-dictation.desktop"
 VENV_PYTHON="$SCRIPT_DIR/.venv/bin/python"
 APP_SCRIPT="$SCRIPT_DIR/src/app.py"

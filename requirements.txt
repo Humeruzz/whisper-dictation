@@ -1,5 +1,6 @@
-faster-whisper>=1.2.0
+openai-whisper>=20231117
 sounddevice>=0.4.0
 numpy>=1.24.0
 evdev>=1.7.0
 python-dotenv>=1.0.0
+# torch is installed separately by setup.sh based on GPU type (NVIDIA/AMD ROCm/CPU)

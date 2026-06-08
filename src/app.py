@@ -23,7 +23,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from gi.repository import AyatanaAppIndicator3 as appindicator  # noqa: E402
 
 import llm
-import whisper
+import transcriber as whisper
 
 load_dotenv()
 

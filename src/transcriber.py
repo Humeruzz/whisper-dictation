@@ -6,16 +6,16 @@ import time
 import evdev
 import numpy as np
 import sounddevice as sd
+import torch
+import whisper as _ow
 from dotenv import load_dotenv
 from evdev import ecodes
-from faster_whisper import WhisperModel
 
 load_dotenv()
 
 # ── Configuration (from .env) ─────────────────────────────────────────────────
 
 MODEL_SIZE = os.getenv("MODEL_SIZE", "small")
-COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "int8")
 DEVICE = os.getenv("DEVICE", "auto")
 LANGUAGE = os.getenv("WHISPER_LANGUAGE", "en") or None  # empty string → None = auto-detect
 SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", "16000"))
@@ -29,30 +29,22 @@ HOTKEY_SHIFT = {ecodes.KEY_LEFTSHIFT, ecodes.KEY_RIGHTSHIFT}
 HOTKEY_KEY = ecodes.KEY_S
 
 
+# ── Device Resolution ─────────────────────────────────────────────────────────
+
+def _resolve_device(device: str) -> str:
+    """Resolve 'auto' to 'cuda' or 'cpu'. Works for both NVIDIA CUDA and AMD ROCm."""
+    if device == "auto":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    return device
+
+
 # ── Whisper Model ─────────────────────────────────────────────────────────────
 
-def _has_gpu() -> bool:
-    try:
-        import ctranslate2
-        return ctranslate2.get_cuda_device_count() > 0
-    except Exception:
-        return False
-
-
 def load_model():
-    device = DEVICE
-    compute_type = COMPUTE_TYPE
-
-    # "auto" resolves to CPU when no GPU is present; check the effective device
-    # before passing float16, which CTranslate2 only supports on CUDA.
-    effective_cpu = device == "cpu" or (device == "auto" and not _has_gpu())
-    if compute_type == "float16" and effective_cpu:
-        print("  Warning: float16 requires a CUDA GPU. No GPU detected — falling back to int8.")
-        compute_type = "int8"
-
-    print(f"Loading Whisper model ({MODEL_SIZE}, device={device}, compute={compute_type})... ", end="", flush=True)
+    device = _resolve_device(DEVICE)
+    print(f"Loading Whisper model ({MODEL_SIZE}, device={device})... ", end="", flush=True)
     start = time.monotonic()
-    model = WhisperModel(MODEL_SIZE, device=device, compute_type=compute_type)
+    model = _ow.load_model(MODEL_SIZE, device=device)
     elapsed = time.monotonic() - start
     print(f"done ({elapsed:.1f}s)")
     return model
@@ -120,11 +112,13 @@ class AudioRecorder:
 
 def transcribe_audio(model, audio_data):
     """Transcribe audio with Whisper. Returns the text string (may be empty). Raises on failure."""
-    segments, _info = model.transcribe(
+    # Skip near-silent audio to avoid Whisper hallucinations on background noise
+    if np.abs(audio_data).mean() < 0.001:
+        return ""
+
+    result = model.transcribe(
         audio_data,
         language=LANGUAGE,
         beam_size=5,
-        vad_filter=True,
-        vad_parameters=dict(min_silence_duration_ms=500),
     )
-    return " ".join(seg.text.strip() for seg in segments).strip()
+    return result["text"].strip()
