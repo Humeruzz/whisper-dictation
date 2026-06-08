@@ -2,13 +2,13 @@
 
 Local speech-to-text dictation for Linux (Wayland). Press a keyboard shortcut to start recording, press again to stop — transcribed text is pasted at your cursor position.
 
-Runs entirely offline using [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Optionally routes transcription through a local LLM ([LM Studio](https://lmstudio.ai)) to clean up filler words, false starts, and mid-sentence corrections before pasting. Includes a system tray icon and desktop notifications.
+Runs entirely offline using [openai-whisper](https://github.com/openai/whisper) + PyTorch (supports NVIDIA CUDA, AMD ROCm, and CPU). Optionally routes transcription through a local LLM ([LM Studio](https://lmstudio.ai)) to clean up filler words, false starts, and mid-sentence corrections before pasting. Includes a system tray icon and desktop notifications.
 
 ## How It Works
 
 1. A background process listens for a global hotkey via `evdev`
 2. On first press, recording starts from your microphone via `sounddevice`
-3. On second press, recording stops and audio is transcribed with `faster-whisper`
+3. On second press, recording stops and audio is transcribed with `openai-whisper`
 4. *(Optional)* The transcription is sent to a local LLM for cleanup or summarization
 5. The final text is copied to clipboard (`wl-copy`) and pasted at your cursor via a simulated `Ctrl+V` (`evdev` UInput)
 
@@ -33,7 +33,7 @@ The setup script:
 - Installs system packages (`wl-clipboard`, `libportaudio2`, AppIndicator GIR bindings)
 - Adds your user to the `input` group (for keyboard/uinput access)
 - Creates a udev rule for `/dev/uinput`
-- Creates a Python venv and installs dependencies
+- Creates a Python venv and installs PyTorch (auto-detects NVIDIA/AMD/CPU) + other dependencies
 - Installs a `.desktop` launcher
 
 **You must log out and back in** after first setup for the `input` group change to take effect.
@@ -53,6 +53,7 @@ Then edit `.env` to your preferences. Your changes are git-ignored — they stay
 | Setting | Default | Description |
 |---|---|---|
 | `MODEL_SIZE` | `small` | Whisper model: `tiny`, `base`, `small`, `medium`, `large-v3` |
+| `DEVICE` | `auto` | `auto` = use GPU if available (NVIDIA/AMD), `cpu` = force CPU |
 | `WHISPER_LANGUAGE` | `en` | Language code, or empty for auto-detect |
 | `PASTE_DELAY_MS` | `100` | Delay between clipboard copy and Ctrl+V (increase if paste is blank) |
 | `LLM_ENABLED` | `true` | Set to `false` to skip LLM and paste raw Whisper output |
@@ -60,7 +61,7 @@ Then edit `.env` to your preferences. Your changes are git-ignored — they stay
 | `LLM_MODE` | `format` | `format` = cleanup only, `summarize` = condense to key points |
 | `LLM_TIMEOUT` | `10` | Seconds to wait for LLM before falling back to raw transcription |
 
-To change the hotkey (default: **Super+Shift+S**), edit the `HOTKEY_*` constants at the top of `whisper.py`.
+To change the hotkey (default: **Super+Shift+S**), edit the `HOTKEY_*` constants at the top of `transcriber.py`.
 
 ## Usage
 
@@ -120,7 +121,7 @@ If LM Studio is not running or times out, the app falls back to raw Whisper outp
 
 ## Known Limitations
 
-- **Super+Shift+S** may conflict with GNOME's screenshot shortcut — disable it in Settings > Keyboard > Shortcuts, or change the hotkey in `whisper.py`
+- **Super+Shift+S** may conflict with GNOME's screenshot shortcut — disable it in Settings > Keyboard > Shortcuts, or change the hotkey in `transcriber.py`
 - `evdev` and `/dev/uinput` require the user to be in the `input` group
 - The venv must be created with `/usr/bin/python3` (not Anaconda) to access system `gi` bindings
 

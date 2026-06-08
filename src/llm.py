@@ -96,9 +96,6 @@ def format_with_llm(text: str) -> str:
     except urllib.error.URLError as e:
         print(f"[LLM] Unavailable ({e.reason}), using original text")
         return text
-    except TimeoutError:
-        print("[LLM] Timed out, using original text")
-        return text
     except (KeyError, IndexError, json.JSONDecodeError) as e:
         print(f"[LLM] Unexpected response format ({e}), using original text")
         return text

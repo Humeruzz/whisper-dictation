@@ -10,12 +10,12 @@ echo "Note: This build uses openai-whisper + PyTorch (supports NVIDIA CUDA, AMD 
 echo ""
 
 # Install system packages
-echo "[1/7] Installing system packages..."
+echo "[1/8] Installing system packages..."
 sudo apt install -y build-essential python3-dev wl-clipboard libportaudio2 portaudio19-dev gir1.2-ayatanaappindicator3-0.1
 
 # Add user to input group (needed for evdev + uinput)
 echo ""
-echo "[2/7] Adding $USER to 'input' group..."
+echo "[2/8] Adding $USER to 'input' group..."
 if groups "$USER" | grep -qw input; then
     echo "  Already in 'input' group."
 else
@@ -26,7 +26,7 @@ fi
 # Grant input group access to /dev/uinput (needed for Ctrl+V simulation)
 echo ""
 UDEV_RULE="/etc/udev/rules.d/80-uinput.rules"
-echo "[3/7] Setting up /dev/uinput access..."
+echo "[3/8] Setting up /dev/uinput access..."
 if [ -f "$UDEV_RULE" ]; then
     echo "  Udev rule already exists."
 else
@@ -38,7 +38,7 @@ fi
 
 # Create (or recreate) virtual environment
 echo ""
-echo "[4/7] Setting up Python virtual environment..."
+echo "[4/8] Setting up Python virtual environment..."
 if [ -d ".venv" ]; then
     echo "  Removing existing .venv for clean reinstall..."
     rm -rf .venv
