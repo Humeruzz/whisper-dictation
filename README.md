@@ -77,6 +77,8 @@ Then edit `.env` to your preferences. Your changes are git-ignored — they stay
 | Setting | Default | Description |
 |---|---|---|
 | `MODEL_SIZE` | `small` | Whisper model: `tiny`, `base`, `small`, `medium`, `large-v3` |
+| `DEVICE` | `auto` | `auto` = use NVIDIA GPU if available, `cpu` = force CPU |
+| `COMPUTE_TYPE` | `int8` | `int8` = fastest on CPU, `float16` = NVIDIA GPU only, `float32` = fallback |
 | `WHISPER_LANGUAGE` | `en` | Language code, or empty for auto-detect |
 | `PASTE_DELAY_MS` | `100` | Delay between clipboard copy and Ctrl+V (increase if paste is blank) |
 | `LLM_ENABLED` | `true` | Set to `false` to skip LLM and paste raw Whisper output |

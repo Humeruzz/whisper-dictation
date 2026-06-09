@@ -6,6 +6,9 @@ cd "$SCRIPT_DIR"
 
 echo "=== Whisper Dictation Tool Setup ==="
 echo ""
+echo "Note: This build uses faster-whisper + CTranslate2 (NVIDIA CUDA only)."
+echo "      For AMD GPUs or CPU-only machines, use the feature/openai-whisper-rocm branch."
+echo ""
 
 # Install system packages
 echo "[1/7] Installing system packages..."
