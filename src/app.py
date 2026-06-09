@@ -292,7 +292,9 @@ class DictationApp:
         dialog.set_version(__version__)
         dialog.set_comments(
             "Speech-to-text dictation with optional LLM formatting.\n"
-            "Press Super+Shift+S to start/stop recording."
+            "Press Super+Shift+S to start/stop recording.\n\n"
+            "Transcription: faster-whisper + CTranslate2\n"
+            "(optimised for NVIDIA CUDA)"
         )
         dialog.run()
         dialog.destroy()

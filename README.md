@@ -2,13 +2,42 @@
 
 Local speech-to-text dictation for Linux (Wayland). Press a keyboard shortcut to start recording, press again to stop — transcribed text is pasted at your cursor position.
 
-Runs entirely offline using [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Optionally routes transcription through a local LLM ([LM Studio](https://lmstudio.ai)) to clean up filler words, false starts, and mid-sentence corrections before pasting. Includes a system tray icon and desktop notifications.
+Runs entirely offline. Optionally routes transcription through a local LLM ([LM Studio](https://lmstudio.ai)) to clean up filler words, false starts, and mid-sentence corrections before pasting. Includes a system tray icon and desktop notifications.
+
+## Variants
+
+Two branches are available depending on your GPU:
+
+| Branch | Backend | GPU support | When to use |
+|---|---|---|---|
+| `main` *(this branch)* | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) + CTranslate2 | **NVIDIA CUDA only** | You have an NVIDIA GPU |
+| [`feature/openai-whisper-rocm`](../../tree/feature/openai-whisper-rocm) | [openai-whisper](https://github.com/openai/whisper) + PyTorch | **NVIDIA CUDA, AMD ROCm, CPU** | You have an AMD GPU, no GPU, or want broader compatibility |
+
+### Installing the NVIDIA variant (`main`)
+
+```bash
+git clone https://github.com/Humeruzz/whisper-dictation.git
+cd whisper-dictation
+chmod +x setup.sh
+./setup.sh
+```
+
+### Installing the AMD / CPU variant (`feature/openai-whisper-rocm`)
+
+```bash
+git clone -b feature/openai-whisper-rocm https://github.com/Humeruzz/whisper-dictation.git
+cd whisper-dictation
+chmod +x setup.sh
+./setup.sh
+```
+
+`setup.sh` auto-detects your GPU (NVIDIA / AMD ROCm / CPU) and installs the correct PyTorch build automatically.
 
 ## How It Works
 
 1. A background process listens for a global hotkey via `evdev`
 2. On first press, recording starts from your microphone via `sounddevice`
-3. On second press, recording stops and audio is transcribed with `faster-whisper`
+3. On second press, recording stops and audio is transcribed with Whisper
 4. *(Optional)* The transcription is sent to a local LLM for cleanup or summarization
 5. The final text is copied to clipboard (`wl-copy`) and pasted at your cursor via a simulated `Ctrl+V` (`evdev` UInput)
 
@@ -22,12 +51,7 @@ Runs entirely offline using [faster-whisper](https://github.com/SYSTRAN/faster-w
 
 ## Setup
 
-```bash
-git clone https://github.com/Humeruzz/whisper-dictation.git
-cd whisper-dictation
-chmod +x setup.sh
-./setup.sh
-```
+See the [Variants](#variants) section above for the correct clone command for your GPU.
 
 The setup script:
 - Installs system packages (`wl-clipboard`, `libportaudio2`, AppIndicator GIR bindings)
